@@ -29,15 +29,31 @@ jobs:
 
     - name: Create Cordova Project
       run: |
-        set -e
+        echo "=== BEFORE create ==="
+        pwd
+        ls -la
+        echo "=== Running cordova create ==="
         cordova create cordova_app com.myrunplay.mayumsyka2 MayUmshka2
+        echo "=== AFTER create ==="
+        pwd
+        ls -la
+        ls -la cordova_app
+        echo "=== Copying www ==="
         rm -rf cordova_app/www/*
         cp -R www/* cordova_app/www/
         cp config.xml cordova_app/config.xml
+        echo "=== cd into cordova_app ==="
         cd cordova_app
+        pwd
+        ls -la
+        echo "=== Adding android platform ==="
         cordova platform add android@13.0.0 --no-telemetry
-        ls -la platforms/
-        ls -la platforms/android/
+        echo "=== AFTER platform add ==="
+        pwd
+        ls -la
+        echo "=== Checking platforms dir ==="
+        ls -la platforms/ || true
+        ls -la platforms/android/ || true
       env:
         ANDROID_HOME: /usr/local/lib/android/sdk
 
