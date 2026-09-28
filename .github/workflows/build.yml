@@ -16,16 +16,16 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
 
-    - name: Set up JDK 11
+    - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: '11'
+        java-version: '21'
 
     - name: Install Cordova
-      run: npm install -g cordova@11
+      run: npm install -g cordova
 
     - name: Create Cordova Project
       run: |
@@ -34,9 +34,21 @@ jobs:
         cp -R www/* cordova_app/www/
         cp config.xml cordova_app/config.xml
         cd cordova_app
-        cordova platform add android@10.1.2 --no-telemetry
+        cordova platform add android@13.0.0 --no-telemetry
+        
+        # Проверяем, что платформа действительно создалась
+        if [ ! -d "platforms/android" ]; then
+          echo "Ошибка: папка platforms/android не была создана!"
+          exit 1
+        fi
+        
+        # Копируем build-extras.gradle из корня репозитория, если он есть
+        if [ -f "../build-extras.gradle" ]; then
+          cp ../build-extras.gradle platforms/android/app/
+        fi
       env:
         ANDROID_HOME: /usr/local/lib/android/sdk
+        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     - name: Set Custom App Icon
       run: |
@@ -57,14 +69,20 @@ jobs:
           cp "$ICON_SRC" "$RES_DIR/drawable/icon.png" 2>/dev/null || true
         fi
 
-    # ВАЖНО: Удаляем старые иконки из config.xml, чтобы Cordova не перезаписала нашу новую
+    # Удаляем старые иконки из config.xml, чтобы Cordova не перезаписала нашу новую
     - name: Remove default icons from config.xml
       run: |
         sed -i '/<icon /d' cordova_app/config.xml
 
     - name: Force versionCode
       run: |
-        BUILD_GRADLE="cordova_app/platforms/android/app/build.gradle"
+        # Ищем build.gradle автоматически, чтобы избежать ошибок с путями
+        BUILD_GRADLE=$(find cordova_app -name "build.gradle" | grep "app/build.gradle" | head -n 1)
+        if [ -z "$BUILD_GRADLE" ]; then
+          echo "Ошибка: build.gradle не найден!"
+          find cordova_app -type d
+          exit 1
+        fi
         sed -i 's/versionCode .*/versionCode 6/' "$BUILD_GRADLE"
         grep -n "versionCode" "$BUILD_GRADLE"
 
@@ -115,6 +133,7 @@ jobs:
         cordova build android --release --no-telemetry -- --packageType=apk --versionCode=6 --versionName=2.0.0
       env:
         ANDROID_HOME: /usr/local/lib/android/sdk
+        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     - name: Sign APK
       run: |
