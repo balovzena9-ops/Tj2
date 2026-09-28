@@ -25,20 +25,23 @@ jobs:
         java-version: '17'
 
     - name: Install Cordova
-      run: npm install -g cordova
+      run: npm install -g cordova@12
 
     - name: Create Cordova Project
       run: |
+        set -e
         cordova create cordova_app com.myrunplay.mayumsyka2 MayUmshka2
         rm -rf cordova_app/www/*
         cp -R www/* cordova_app/www/
         cp config.xml cordova_app/config.xml
         cd cordova_app
         cordova platform add android@13.0.0 --no-telemetry
+        echo "=== platforms после установки ==="
+        ls -la platforms/
+        ls -la platforms/android/ || true
       env:
         ANDROID_HOME: /usr/local/lib/android/sdk
 
-    # Проверка, что платформа установилась (диагностика на случай повтора ошибки)
     - name: Verify Android platform installed
       run: |
         echo "=== Содержимое cordova_app/platforms ==="
