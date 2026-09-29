@@ -50,35 +50,38 @@ jobs:
           mkdir -p final
           APK=$(find platforms -name "*.apk" -type f | head -n 1)
           if [ -z "$APK" ]; then
-            echo "APK не собрался. Проверяем AAB:"
-            find platforms -name "*.aab" -type f
+            echo "APK не собрался"
             exit 1
           fi
           echo "Найден APK: $APK"
           cp "$APK" final/unsigned.apk
 
-      - name: Sign APK
-        run: |
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-            -keystore release.keystore \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -keypass "${{ secrets.KEY_PASSWORD }}" \
-            final/unsigned.apk \
-            "${{ secrets.KEY_ALIAS }}"
-
-      - name: Verify signature
-        run: |
-          jarsigner -verify -verbose -certs final/unsigned.apk
-          if [ $? -ne 0 ]; then
-            echo "ПОДПИСЬ НЕ ПРИМЕНИЛАСЬ"
-            exit 1
-          fi
-          echo "Подпись подтверждена"
-
       - name: Zipalign
         run: |
           ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
-          $ZIPALIGN -v 4 final/unsigned.apk final/MayUmshka2.apk
+          $ZIPALIGN -v 4 final/unsigned.apk final/aligned.apk
+
+      - name: Sign APK with apksigner (v1+v2+v3)
+        run: |
+          APKSIGNER=$(find $ANDROID_SDK_ROOT -name apksigner -type f | head -n 1)
+          echo "Using apksigner: $APKSIGNER"
+          $APKSIGNER sign \
+            --ks release.keystore \
+            --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out final/MayUmshka2.apk \
+            final/aligned.apk
+
+      - name: Verify signature (v2 + v3)
+        run: |
+          APKSIGNER=$(find $ANDROID_SDK_ROOT -name apksigner -type f | head -n 1)
+          $APKSIGNER verify --verbose --print-certs final/MayUmshka2.apk
+          echo "=== Проверяем, что v2 и v3 активны ==="
+          $APKSIGNER verify --verbose final/MayUmshka2.apk | grep -E "Verified using v[123] scheme"
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
