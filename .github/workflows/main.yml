@@ -50,28 +50,38 @@ jobs:
           printf 'storePassword=%s\n' "${{ secrets.KEYSTORE_PASSWORD }}" >> platforms/android/release-signing.properties
           printf 'keyAlias=%s\n' "${{ secrets.KEY_ALIAS }}" >> platforms/android/release-signing.properties
           printf 'keyPassword=%s\n' "${{ secrets.KEY_PASSWORD }}" >> platforms/android/release-signing.properties
+          echo "=== release-signing.properties ==="
+          cat platforms/android/release-signing.properties | sed 's/Password=.*/Password=***/'
 
-      - name: Build Release APK
-        run: cordova build android --release
+      # Вот это ключевое: --verbose и --device, чтобы Cordova честно падала при ошибке
+      - name: Build Release APK (verbose)
+        run: cordova build android --release --verbose --device
 
-      # Печатаем все APK, которые вообще есть на диске
-      - name: Find all APK files
+      # Печатаем ВСЮ структуру папки outputs, а не только .apk
+      - name: Show build outputs tree
+        if: always()
         run: |
-          echo "=== Все APK в проекте ==="
+          echo "=== platforms/android/app/build/outputs ==="
+          find platforms/android/app/build/outputs -type f 2>/dev/null || echo "Папка outputs отсутствует"
+          echo ""
+          echo "=== Все .apk в проекте ==="
           find . -name "*.apk" -type f 2>/dev/null || echo "APK не найдены"
+          echo ""
+          echo "=== Все .aab в проекте ==="
+          find . -name "*.aab" -type f 2>/dev/null || echo "AAB не найдены"
 
-      # Копируем найденные APK в одну папку
       - name: Collect APKs
+        if: always()
         run: |
           mkdir -p $RUNNER_TEMP/apks
           find . -name "*.apk" -type f -exec cp {} $RUNNER_TEMP/apks/ \; 2>/dev/null || true
-          echo "=== Содержимое папки для загрузки ==="
+          echo "=== Содержимое $RUNNER_TEMP/apks ==="
           ls -la $RUNNER_TEMP/apks/
 
-      # Загружаем всё, что скопировали
       - name: Upload APKs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mayumsyka2-apk
           path: ${{ runner.temp }}/apks/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
