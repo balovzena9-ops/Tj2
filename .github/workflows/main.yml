@@ -1,4 +1,4 @@
-name: Build Cordova APK (Release)
+name: Build Cordova APK
 
 on:
   push:
@@ -32,7 +32,6 @@ jobs:
         run: |
           SDKMANAGER=$(find $ANDROID_SDK_ROOT -name sdkmanager -type f | head -n 1)
           yes | $SDKMANAGER --licenses --sdk_root=$ANDROID_SDK_ROOT || true
-          yes | $SDKMANAGER --licenses || true
 
       - name: Install Cordova
         run: npm install -g cordova
@@ -41,57 +40,20 @@ jobs:
         run: cordova platform add android
 
       - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/my-release-key.keystore
-          ls -la $RUNNER_TEMP/my-release-key.keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/keystore.jks
 
       - name: Create signing properties
         run: |
-          printf 'storeFile=%s\n' "$RUNNER_TEMP/my-release-key.keystore" > platforms/android/release-signing.properties
+          printf 'storeFile=%s\n' "$RUNNER_TEMP/keystore.jks" > platforms/android/release-signing.properties
           printf 'storePassword=%s\n' "${{ secrets.KEYSTORE_PASSWORD }}" >> platforms/android/release-signing.properties
           printf 'keyAlias=%s\n' "${{ secrets.KEY_ALIAS }}" >> platforms/android/release-signing.properties
           printf 'keyPassword=%s\n' "${{ secrets.KEY_PASSWORD }}" >> platforms/android/release-signing.properties
-          echo "=== release-signing.properties ==="
-          sed 's/Password=.*/Password=***/' platforms/android/release-signing.properties
 
-      # Явно просим APK (не AAB) и максимальный вывод
       - name: Build Release APK
-        run: cordova build android --release --packageType=apk --verbose
+        run: cordova build android --release
 
-      # САМОЕ ВАЖНОЕ: смотрим, что реально лежит на диске
-      - name: Deep scan for APK
-        if: always()
-        run: |
-          echo "=== pwd ==="
-          pwd
-          echo ""
-          echo "=== ls в корне репозитория ==="
-          ls -la
-          echo ""
-          echo "=== Дерево platforms/android/app/build ==="
-          ls -R platforms/android/app/build 2>/dev/null || echo "Папки build нет вообще"
-          echo ""
-          echo "=== Поиск APK в workspace ==="
-          find ${{ github.workspace }} -name "*.apk" -type f 2>/dev/null || echo "нет APK в workspace"
-          echo ""
-          echo "=== Поиск APK во всём /home/runner ==="
-          find /home/runner -name "*.apk" -type f 2>/dev/null || echo "нет APK в /home/runner"
-          echo ""
-          echo "=== Поиск .aab (на случай, если Cordova собрала bundle) ==="
-          find ${{ github.workspace }} -name "*.aab" -type f 2>/dev/null || echo "нет AAB"
-
-      - name: Collect APKs
-        if: always()
-        run: |
-          mkdir -p $RUNNER_TEMP/apks
-          find /home/runner -name "*.apk" -type f -exec cp {} $RUNNER_TEMP/apks/ \; 2>/dev/null || true
-          echo "=== Содержимое $RUNNER_TEMP/apks ==="
-          ls -la $RUNNER_TEMP/apks/
-
-      - name: Upload APKs
-        if: always()
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mayumsyka2-apk
-          path: ${{ runner.temp }}/apks/*.apk
-          if-no-files-found: warn
+          name: MayUmshka2-v2.0.0
+          path: platforms/android/app/build/outputs/apk/release/app-release.apk
