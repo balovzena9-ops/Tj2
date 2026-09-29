@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.myrunplay.mayumsyka2" version="2.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="com.myrunplay.mayumsyka2" version="2.0.0"
+    xmlns="http://www.w3.org/ns/widgets"
+    xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>MayUmshka2</name>
     <description>MayUmshka Chapter 2</description>
     <author>Developer</author>
@@ -7,4 +9,10 @@
 
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
+
+    <!-- Иконка: файл лежит в www, указываем путь относительно корня проекта -->
+    <icon src="www/icon.png" />
+
+    <!-- Плагин для воспроизведения музыки -->
+    <plugin name="cordova-plugin-media" spec="^7.0.0" />
 </widget>
