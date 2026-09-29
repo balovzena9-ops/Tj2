@@ -1,4 +1,4 @@
-name: Build Android APK Chapter 2
+name: Build Cordova APK
 
 on:
   push:
@@ -6,161 +6,46 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
+      # 1. Клонируем репозиторий
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
+      # 2. Ставим Java 17 (нужна для современного Cordova-Android)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '21'
+      # 3. Ставим Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-    - name: Install Cordova
-      run: npm install -g cordova
+      # 4. Ставим Android SDK (нужен для сборки)
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-    - name: Create Cordova Project
-      run: |
-        cordova create cordova_app com.myrunplay.mayumsyka2 MayUmshka2
-        rm -rf cordova_app/www/*
-        cp -R www/* cordova_app/www/
-        cp config.xml cordova_app/config.xml
-        cd cordova_app
-        cordova platform add android@13.0.0 --no-telemetry
-        
-        # Проверяем, что платформа действительно создалась
-        if [ ! -d "platforms/android" ]; then
-          echo "Ошибка: папка platforms/android не была создана!"
-          exit 1
-        fi
-        
-        # Копируем build-extras.gradle из корня репозитория, если он есть
-        if [ -f "../build-extras.gradle" ]; then
-          cp ../build-extras.gradle platforms/android/app/
-        fi
-      env:
-        ANDROID_HOME: /usr/local/lib/android/sdk
-        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      # 5. Ставим Cordova глобально
+      - name: Install Cordova
+        run: npm install -g cordova
 
-    - name: Set Custom App Icon
-      run: |
-        ICON_SRC="www/icon (2).png"
-        if [ ! -f "$ICON_SRC" ]; then
-          echo "Ошибка: Файл иконки не найден по пути $ICON_SRC"
-          exit 1
-        fi
-        RES_DIR="cordova_app/platforms/android/app/src/main/res"
-        for DENSITY in ldpi mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-          DIR="$RES_DIR/mipmap-$DENSITY"
-          if [ -d "$DIR" ]; then
-            cp "$ICON_SRC" "$DIR/ic_launcher.png"
-            cp "$ICON_SRC" "$DIR/ic_launcher_round.png" 2>/dev/null || true
-          fi
-        done
-        if [ -d "$RES_DIR/drawable" ]; then
-          cp "$ICON_SRC" "$RES_DIR/drawable/icon.png" 2>/dev/null || true
-        fi
+      # 6. Добавляем Android-платформу
+      - name: Add Android platform
+        run: cordova platform add android
 
-    # Удаляем старые иконки из config.xml, чтобы Cordova не перезаписала нашу новую
-    - name: Remove default icons from config.xml
-      run: |
-        sed -i '/<icon /d' cordova_app/config.xml
+      # 7. Собираем APK (debug)
+      - name: Build APK
+        run: cordova build android
 
-    - name: Force versionCode
-      run: |
-        # Ищем build.gradle автоматически, чтобы избежать ошибок с путями
-        BUILD_GRADLE=$(find cordova_app -name "build.gradle" | grep "app/build.gradle" | head -n 1)
-        if [ -z "$BUILD_GRADLE" ]; then
-          echo "Ошибка: build.gradle не найден!"
-          find cordova_app -type d
-          exit 1
-        fi
-        sed -i 's/versionCode .*/versionCode 6/' "$BUILD_GRADLE"
-        grep -n "versionCode" "$BUILD_GRADLE"
-
-    - name: Force Android Audio Permissions
-      run: |
-        MAIN_ACTIVITY=$(find cordova_app/platforms/android/app/src/main/java/ -name "MainActivity.java" | head -n 1)
-        if [ -n "$MAIN_ACTIVITY" ]; then
-          cat << 'EOF' > "$MAIN_ACTIVITY"
-        package com.myrunplay.mayumsyka2;
-
-        import android.os.Bundle;
-        import android.webkit.WebSettings;
-        import android.webkit.WebView;
-        import org.apache.cordova.*;
-
-        public class MainActivity extends CordovaActivity {
-            @Override
-            public void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                if (customConfig == null) {
-                    loadUrl(launchUrl);
-                }
-                if (appView != null && appView.getEngine() != null) {
-                    WebView webView = (WebView) appView.getEngine().getView();
-                    WebSettings settings = webView.getSettings();
-                    settings.setMediaPlaybackRequiresUserGesture(false);
-                    settings.setDomStorageEnabled(true);
-                    settings.setJavaScriptEnabled(true);
-                }
-            }
-        }
-        EOF
-        else
-          echo "Ошибка: MainActivity.java не найден"
-          exit 1
-        fi
-
-    - name: Fix colors.xml
-      run: |
-        COLORS_FILE="cordova_app/platforms/android/app/src/main/res/values/colors.xml"
-        if [ -f "$COLORS_FILE" ]; then
-          sed -i -E 's/(<color[^>]*>)0x([0-9a-fA-F]+)(<\/color>)/\1#\2\3/g' "$COLORS_FILE"
-        fi
-
-    - name: Build Android Release APK
-      run: |
-        cd cordova_app
-        cordova build android --release --no-telemetry -- --packageType=apk --versionCode=6 --versionName=2.0.0
-      env:
-        ANDROID_HOME: /usr/local/lib/android/sdk
-        ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
-    - name: Sign APK
-      run: |
-        keytool -genkey -v -keystore my-release-key.jks -alias game_alias \
-          -keyalg RSA -keysize 2048 -validity 10000 \
-          -storepass mysecretpassword123 -keypass mysecretpassword123 \
-          -dname "CN=MayUmshka2, O=Developer, C=RU"
-
-        ORIGINAL_APK=$(find . -name "*release-unsigned.apk" -o -name "*release.apk" | head -n 1)
-        if [ -z "$ORIGINAL_APK" ]; then
-          echo "Ошибка: Неподписанный APK не найден!"
-          exit 1
-        fi
-        echo "Найден APK: $ORIGINAL_APK"
-
-        ZIPALIGN=$(find $ANDROID_HOME/build-tools -name zipalign | sort -V | tail -1)
-        APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -1)
-
-        $ZIPALIGN -v 4 $ORIGINAL_APK ./aligned.apk
-        $APKSIGNER sign \
-          --ks my-release-key.jks --ks-key-alias game_alias \
-          --ks-pass pass:mysecretpassword123 --key-pass pass:mysecretpassword123 \
-          --v2-signing-enabled true --v3-signing-enabled true \
-          --out ./MayUmshka2_Chapter2.apk ./aligned.apk
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: RuStore-Ready-APK
-        path: MayUmshka2_Chapter2.apk
+      # 8. Загружаем APK как артефакт
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mayumsyka2-apk
+          path: platforms/android/app/build/outputs/apk/debug/*.apk
