@@ -1,8 +1,0 @@
-android {
-    defaultConfig {
-        // Разрешаем WebView загружать локальный медиа-контент без ограничений безопасности
-        manifestPlaceholders = [
-            usesCleartextTraffic: "true"
-        ]
-    }
-}
