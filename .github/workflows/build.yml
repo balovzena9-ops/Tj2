@@ -42,36 +42,18 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      # Явно указываем packageType=apk двойным дефисом
       - name: Build Release APK
-        run: cordova build android --release -- --packageType=apk --verbose
+        run: cordova build android --release
 
-      # Ищем APK и AAB по ВСЕМУ диску раннера
-      - name: Search whole filesystem
+      - name: Find and copy APK
         run: |
-          echo "=== ВСЕ APK НА ДИСКЕ ==="
-          find / -name "*.apk" -type f 2>/dev/null || true
-          echo ""
-          echo "=== ВСЕ AAB НА ДИСКЕ ==="
-          find / -name "*.aab" -type f 2>/dev/null || true
-
-      # Копируем любой найденный APK или AAB в папку out
-      - name: Copy APK or AAB
-        run: |
-          mkdir -p ${{ github.workspace }}/out
-          find / -name "*.apk" -type f -exec cp {} ${{ github.workspace }}/out/ \; 2>/dev/null || true
-          find / -name "*.aab" -type f -exec cp {} ${{ github.workspace }}/out/ \; 2>/dev/null || true
-          echo "=== Что лежит в out/: ==="
-          ls -la ${{ github.workspace }}/out/
+          mkdir -p out
+          find / -name "*.apk" -type f -exec cp {} out/ \; 2>/dev/null || true
+          ls -la out/
 
       - name: Sign APK
         run: |
-          APK=$(find ${{ github.workspace }}/out -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "APK не найден, пропускаем подпись"
-            exit 0
-          fi
-          echo "Подписываем: $APK"
+          APK=$(find out -name "*.apk" | head -n 1)
           jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
             -keystore release.keystore \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
@@ -81,14 +63,13 @@ jobs:
 
       - name: Zipalign APK
         run: |
-          APK=$(find ${{ github.workspace }}/out -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then exit 0; fi
+          APK=$(find out -name "*.apk" | head -n 1)
           ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
-          $ZIPALIGN -v 4 "$APK" ${{ github.workspace }}/out/MayUmshka2.apk
+          $ZIPALIGN -v 4 "$APK" out/MayUmshka2-ready.apk
 
-      - name: Upload everything from out
+      - name: Upload ready APK
         uses: actions/upload-artifact@v4
         with:
-          name: MayUmshka2-v2.0.0
-          path: ${{ github.workspace }}/out/
+          name: MayUmshka2-v2.0.0-READY-FOR-RUSTORE
+          path: out/MayUmshka2-ready.apk
           if-no-files-found: error
