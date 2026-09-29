@@ -12,22 +12,17 @@
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
 
-    <!-- Версия кода для RuStore: глава 2 начинается с 20000 -->
     <preference name="android-versionCode" value="20000" />
     <preference name="android-minSdkVersion" value="24" />
     <preference name="android-targetSdkVersion" value="34" />
+    <preference name="android-packageType" value="apk" />
 
-    <!-- Иконка -->
     <icon src="www/icon.png" />
 
-    <!-- Плагин для музыки -->
     <plugin name="cordova-plugin-media" spec="^7.0.0" />
 
-    <!-- Настройки для Android -->
     <platform name="android">
         <preference name="android-usesCleartextTraffic" value="true" />
-
-        <!-- Иконки для всех плотностей экрана -->
         <icon density="ldpi"    src="www/icon.png" />
         <icon density="mdpi"    src="www/icon.png" />
         <icon density="hdpi"    src="www/icon.png" />
