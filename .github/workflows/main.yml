@@ -28,19 +28,9 @@ jobs:
         with:
           node-version: '20'
 
-      # Используем Android SDK, который уже есть на раннере
-      - name: Verify Android SDK
-        run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la $ANDROID_SDK_ROOT || true
-          which sdkmanager || true
-          ls $ANDROID_SDK_ROOT/cmdline-tools || true
-
-      # Принимаем лицензии через уже установленный sdkmanager
       - name: Accept Android SDK Licenses
         run: |
           SDKMANAGER=$(find $ANDROID_SDK_ROOT -name sdkmanager -type f | head -n 1)
-          echo "Using sdkmanager: $SDKMANAGER"
           yes | $SDKMANAGER --licenses --sdk_root=$ANDROID_SDK_ROOT || true
           yes | $SDKMANAGER --licenses || true
 
@@ -64,12 +54,24 @@ jobs:
       - name: Build Release APK
         run: cordova build android --release
 
-      - name: List APK files
-        run: find platforms/android -name "*.apk" -type f
+      # Печатаем все APK, которые вообще есть на диске
+      - name: Find all APK files
+        run: |
+          echo "=== Все APK в проекте ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "APK не найдены"
 
-      - name: Upload Release APK
+      # Копируем найденные APK в одну папку
+      - name: Collect APKs
+        run: |
+          mkdir -p $RUNNER_TEMP/apks
+          find . -name "*.apk" -type f -exec cp {} $RUNNER_TEMP/apks/ \; 2>/dev/null || true
+          echo "=== Содержимое папки для загрузки ==="
+          ls -la $RUNNER_TEMP/apks/
+
+      # Загружаем всё, что скопировали
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: mayumsyka2-release-apk
-          path: platforms/android/**/*.apk
-         
+          name: mayumsyka2-apk
+          path: ${{ runner.temp }}/apks/*.apk
+          if-no-files-found: error
