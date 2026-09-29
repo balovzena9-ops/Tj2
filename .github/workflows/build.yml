@@ -57,3 +57,4 @@ jobs:
         with:
           name: MayUmshka2-v2.0.0
           path: platforms/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
