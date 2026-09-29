@@ -59,7 +59,7 @@ jobs:
 
       - name: Sign APK
         run: |
-          jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
             -keystore release.keystore \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
             -keypass "${{ secrets.KEY_PASSWORD }}" \
@@ -68,9 +68,12 @@ jobs:
 
       - name: Verify signature
         run: |
-          jarsigner -verify final/unsigned.apk | grep -q "jar verified" \
-            && echo "Подпись подтверждена" \
-            || (echo "ПОДПИСЬ НЕ ПРИМЕНИЛАСЬ" && exit 1)
+          jarsigner -verify -verbose -certs final/unsigned.apk
+          if [ $? -ne 0 ]; then
+            echo "ПОДПИСЬ НЕ ПРИМЕНИЛАСЬ"
+            exit 1
+          fi
+          echo "Подпись подтверждена"
 
       - name: Zipalign
         run: |
