@@ -1,0 +1,38 @@
+name: Generate Keystore (ONE TIME ONLY)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair -v -storetype JKS \
+            -keystore my-release-key.jks \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias mayumsyka \
+            -storepass mayumsyka123 \
+            -keypass mayumsyka123 \
+            -dname "CN=MayUmshka2, OU=Game, O=MyRunPlay, L=Moscow, S=Moscow, C=RU"
+
+      - name: Convert to base64
+        run: |
+          base64 -w 0 my-release-key.jks > keystore.b64
+          echo "=============== СКОПИРУЙ СТРОКУ НИЖЕ ==============="
+          cat keystore.b64
+          echo ""
+          echo "=============== КОНЕЦ СТРОКИ ==============="
+
+      - name: Upload keystore file
+        uses: actions/upload-artifact@v4
+        with:
+          name: KEYSTORE-FILE-SAVE-FOREVER
+          path: my-release-key.jks
