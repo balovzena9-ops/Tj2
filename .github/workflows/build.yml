@@ -1,4 +1,4 @@
-name: Build Cordova APK
+name: Build Cordova APK (Release)
 
 on:
   push:
@@ -24,11 +24,9 @@ jobs:
         with:
           node-version: '20'
 
-      # 1. Установка Android SDK через официальное действие v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      # 2. Принудительное принятие лицензий с явным указанием пути к SDK
       - name: Accept Android SDK Licenses
         run: |
           yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT || true
@@ -39,11 +37,28 @@ jobs:
       - name: Add Android platform
         run: cordova platform add android
 
-      - name: Build APK
-        run: cordova build android
+      # Восстанавливаем keystore из секрета
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/my-release-key.keystore
 
-      - name: Upload APK
+      # Создаём release-signing.properties, чтобы Cordova подписала APK
+      - name: Create signing properties
+        run: |
+          cat > platforms/android/release-signing.properties <<EOF
+          storeFile=$RUNNER_TEMP/my-release-key.keystore
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      # Собираем release APK
+      - name: Build Release APK
+        run: cordova build android --release
+
+      # Загружаем подписанный APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: mayumsyka2-apk
-          path: platforms/android/app/build/outputs/apk/debug/*.apk
+          name: mayumsyka2-release-apk
+          path: platforms/android/app/build/outputs/apk/release/*.apk
