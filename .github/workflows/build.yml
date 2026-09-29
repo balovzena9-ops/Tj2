@@ -1,4 +1,4 @@
-name: Build Cordova APK
+name: Build Signed Cordova APK
 
 on:
   push:
@@ -39,32 +39,36 @@ jobs:
       - name: Add Android platform
         run: cordova platform add android
 
+      # 1. Восстанавливаем keystore из секретов
       - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release.keystore
+
+      # 2. Собираем НЕПОДПИСАННЫЙ APK (этот шаг всегда работает)
+      - name: Build Unsigned Release APK
+        run: cordova build android --release --packageType=apk
+
+      # 3. Подписываем APK с помощью jarsigner
+      - name: Sign APK
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release.keystore
+          jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
+            -keystore ${{ github.workspace }}/release.keystore \
+            -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+            -keypass ${{ secrets.KEY_PASSWORD }} \
+            platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk \
+            ${{ secrets.KEY_ALIAS }}
 
-      - name: Create build.json
+      # 4. Выравниваем (zipalign) подписанный APK — это обязательный шаг для RuStore
+      - name: Zipalign APK
         run: |
-          cat > build.json <<EOF
-          {
-            "android": {
-              "release": {
-                "keystore": "${{ github.workspace }}/release.keystore",
-                "storePassword": "${{ secrets.KEYSTORE_PASSWORD }}",
-                "alias": "${{ secrets.KEY_ALIAS }}",
-                "password": "${{ secrets.KEY_PASSWORD }}",
-                "keystoreType": "jks"
-              }
-            }
-          }
-          EOF
+          ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
+          $ZIPALIGN -v 4 \
+            platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk \
+            platforms/android/app/build/outputs/apk/release/app-release.apk
 
-      - name: Build Release APK
-        run: cordova build android --release --packageType=apk --buildConfig=build.json
-
-      - name: Upload APK
+      # 5. Загружаем готовый подписанный APK
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: MayUmshka2-v2.0.0
-          path: platforms/android/app/build/outputs/apk/release/*.apk
+          name: MayUmshka2-v2.0.0-Signed
+          path: platforms/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
