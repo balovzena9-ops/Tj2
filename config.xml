@@ -2,15 +2,26 @@
 <widget id="com.myrunplay.mayumsyka2" version="2.0.0"
     xmlns="http://www.w3.org/ns/widgets"
     xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    
     <name>MayUmshka2</name>
     <description>MayUmshka Chapter 2</description>
     <author>Developer</author>
+    
     <content src="index.html" />
 
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
 
+    <!-- Иконка -->
     <icon src="www/icon.png" />
 
+    <!-- Плагин для музыки -->
     <plugin name="cordova-plugin-media" spec="^7.0.0" />
+
+    <!-- Настройки для Android -->
+    <platform name="android">
+        <!-- Разрешаем загрузку локального контента и трафик (замена build-extras.gradle) -->
+        <preference name="android-usesCleartextTraffic" value="true" />
+    </platform>
+
 </widget>
