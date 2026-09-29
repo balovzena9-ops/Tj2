@@ -43,6 +43,7 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/my-release-key.keystore
+          ls -la $RUNNER_TEMP/my-release-key.keystore
 
       - name: Create signing properties
         run: |
@@ -51,30 +52,39 @@ jobs:
           printf 'keyAlias=%s\n' "${{ secrets.KEY_ALIAS }}" >> platforms/android/release-signing.properties
           printf 'keyPassword=%s\n' "${{ secrets.KEY_PASSWORD }}" >> platforms/android/release-signing.properties
           echo "=== release-signing.properties ==="
-          cat platforms/android/release-signing.properties | sed 's/Password=.*/Password=***/'
+          sed 's/Password=.*/Password=***/' platforms/android/release-signing.properties
 
-      # Вот это ключевое: --verbose и --device, чтобы Cordova честно падала при ошибке
-      - name: Build Release APK (verbose)
-        run: cordova build android --release --verbose --device
+      # Явно просим APK (не AAB) и максимальный вывод
+      - name: Build Release APK
+        run: cordova build android --release --packageType=apk --verbose
 
-      # Печатаем ВСЮ структуру папки outputs, а не только .apk
-      - name: Show build outputs tree
+      # САМОЕ ВАЖНОЕ: смотрим, что реально лежит на диске
+      - name: Deep scan for APK
         if: always()
         run: |
-          echo "=== platforms/android/app/build/outputs ==="
-          find platforms/android/app/build/outputs -type f 2>/dev/null || echo "Папка outputs отсутствует"
+          echo "=== pwd ==="
+          pwd
           echo ""
-          echo "=== Все .apk в проекте ==="
-          find . -name "*.apk" -type f 2>/dev/null || echo "APK не найдены"
+          echo "=== ls в корне репозитория ==="
+          ls -la
           echo ""
-          echo "=== Все .aab в проекте ==="
-          find . -name "*.aab" -type f 2>/dev/null || echo "AAB не найдены"
+          echo "=== Дерево platforms/android/app/build ==="
+          ls -R platforms/android/app/build 2>/dev/null || echo "Папки build нет вообще"
+          echo ""
+          echo "=== Поиск APK в workspace ==="
+          find ${{ github.workspace }} -name "*.apk" -type f 2>/dev/null || echo "нет APK в workspace"
+          echo ""
+          echo "=== Поиск APK во всём /home/runner ==="
+          find /home/runner -name "*.apk" -type f 2>/dev/null || echo "нет APK в /home/runner"
+          echo ""
+          echo "=== Поиск .aab (на случай, если Cordova собрала bundle) ==="
+          find ${{ github.workspace }} -name "*.aab" -type f 2>/dev/null || echo "нет AAB"
 
       - name: Collect APKs
         if: always()
         run: |
           mkdir -p $RUNNER_TEMP/apks
-          find . -name "*.apk" -type f -exec cp {} $RUNNER_TEMP/apks/ \; 2>/dev/null || true
+          find /home/runner -name "*.apk" -type f -exec cp {} $RUNNER_TEMP/apks/ \; 2>/dev/null || true
           echo "=== Содержимое $RUNNER_TEMP/apks ==="
           ls -la $RUNNER_TEMP/apks/
 
