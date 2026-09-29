@@ -45,32 +45,31 @@ jobs:
       - name: Build Release APK
         run: cordova build android --release
 
-      # Показываем, что реально собралось
-      - name: Find built files
+      # Печатаем ВСЁ, чтобы точно знать, где APK
+      - name: Show everything
         run: |
-          echo "=== APK: ==="
-          find . -name "*.apk" -type f 2>/dev/null || echo "нет APK"
-          echo "=== AAB: ==="
-          find . -name "*.aab" -type f 2>/dev/null || echo "нет AAB"
-          echo "=== Дерево outputs: ==="
-          ls -laR platforms/android/app/build/outputs 2>/dev/null || echo "нет папки outputs"
+          echo "=== pwd ==="
+          pwd
+          echo "=== Все файлы в platforms/android/app/build ==="
+          ls -laR platforms/android/app/build 2>/dev/null || echo "нет папки"
+          echo "=== Поиск APK ==="
+          find ${{ github.workspace }} -name "*.apk" -type f 2>/dev/null || echo "нет APK"
 
-      # Копируем все APK в одну папку
-      - name: Collect APKs
+      # Копируем найденные APK в отдельную папку
+      - name: Copy APKs
         run: |
-          mkdir -p build_out
-          find . -name "*.apk" -type f -exec cp {} build_out/ \; 2>/dev/null || true
-          echo "=== Собрано: ==="
-          ls -la build_out/
+          mkdir -p ${{ github.workspace }}/out
+          find ${{ github.workspace }} -name "*.apk" -type f -exec cp {} ${{ github.workspace }}/out/ \;
+          echo "=== Что скопировали: ==="
+          ls -la ${{ github.workspace }}/out/
 
       - name: Sign APK
-        if: ${{ hashFiles('build_out/*.apk') != '' }}
         env:
           KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          APK=$(ls build_out/*.apk | head -n 1)
+          APK=$(ls ${{ github.workspace }}/out/*.apk | head -n 1)
           echo "Подписываем: $APK"
           jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
             -keystore release.keystore \
@@ -80,15 +79,14 @@ jobs:
             "$ALIAS"
 
       - name: Zipalign APK
-        if: ${{ hashFiles('build_out/*.apk') != '' }}
         run: |
           ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
-          APK=$(ls build_out/*.apk | head -n 1)
-          $ZIPALIGN -v 4 "$APK" build_out/MayUmshka2-signed.apk
+          APK=$(ls ${{ github.workspace }}/out/*.apk | head -n 1)
+          $ZIPALIGN -v 4 "$APK" ${{ github.workspace }}/out/MayUmshka2.apk
 
       - name: Upload APK
-        if: ${{ hashFiles('build_out/*.apk') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: MayUmshka2-v2.0.0-Signed
-          path: build_out/MayUmshka2-signed.apk
+          name: MayUmshka2-v2.0.0
+          path: ${{ github.workspace }}/out/MayUmshka2.apk
+          if-no-files-found: error
