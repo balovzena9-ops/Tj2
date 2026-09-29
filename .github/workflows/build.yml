@@ -10,40 +10,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Клонируем репозиторий
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Ставим Java 17 (нужна для современного Cordova-Android)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Ставим Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 4. Ставим Android SDK (нужен для сборки)
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 5. Ставим Cordova глобально
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Install Cordova
         run: npm install -g cordova
 
-      # 6. Добавляем Android-платформу
       - name: Add Android platform
         run: cordova platform add android
 
-      # 7. Собираем APK (debug)
       - name: Build APK
         run: cordova build android
 
-      # 8. Загружаем APK как артефакт
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
