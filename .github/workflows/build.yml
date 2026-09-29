@@ -24,11 +24,14 @@ jobs:
         with:
           node-version: '20'
 
+      # 1. Установка Android SDK через официальное действие v4
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
+      # 2. Принудительное принятие лицензий с явным указанием пути к SDK
       - name: Accept Android SDK Licenses
-        run: yes | sdkmanager --licenses || true
+        run: |
+          yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT || true
 
       - name: Install Cordova
         run: npm install -g cordova
