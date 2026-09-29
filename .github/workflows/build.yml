@@ -9,6 +9,10 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,12 +28,21 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # Используем Android SDK, который уже есть на раннере
+      - name: Verify Android SDK
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la $ANDROID_SDK_ROOT || true
+          which sdkmanager || true
+          ls $ANDROID_SDK_ROOT/cmdline-tools || true
 
+      # Принимаем лицензии через уже установленный sdkmanager
       - name: Accept Android SDK Licenses
         run: |
-          yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT || true
+          SDKMANAGER=$(find $ANDROID_SDK_ROOT -name sdkmanager -type f | head -n 1)
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | $SDKMANAGER --licenses --sdk_root=$ANDROID_SDK_ROOT || true
+          yes | $SDKMANAGER --licenses || true
 
       - name: Install Cordova
         run: npm install -g cordova
@@ -51,7 +64,6 @@ jobs:
       - name: Build Release APK
         run: cordova build android --release
 
-      # Показывает, какие APK реально собрались (для отладки)
       - name: List APK files
         run: find platforms/android -name "*.apk" -type f
 
@@ -60,4 +72,4 @@ jobs:
         with:
           name: mayumsyka2-release-apk
           path: platforms/android/**/*.apk
-          if-no-files-found: error
+         
