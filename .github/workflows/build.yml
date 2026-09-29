@@ -42,51 +42,53 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
+      # Явно указываем packageType=apk двойным дефисом
       - name: Build Release APK
-        run: cordova build android --release
+        run: cordova build android --release -- --packageType=apk --verbose
 
-      # Печатаем ВСЁ, чтобы точно знать, где APK
-      - name: Show everything
+      # Ищем APK и AAB по ВСЕМУ диску раннера
+      - name: Search whole filesystem
         run: |
-          echo "=== pwd ==="
-          pwd
-          echo "=== Все файлы в platforms/android/app/build ==="
-          ls -laR platforms/android/app/build 2>/dev/null || echo "нет папки"
-          echo "=== Поиск APK ==="
-          find ${{ github.workspace }} -name "*.apk" -type f 2>/dev/null || echo "нет APK"
+          echo "=== ВСЕ APK НА ДИСКЕ ==="
+          find / -name "*.apk" -type f 2>/dev/null || true
+          echo ""
+          echo "=== ВСЕ AAB НА ДИСКЕ ==="
+          find / -name "*.aab" -type f 2>/dev/null || true
 
-      # Копируем найденные APK в отдельную папку
-      - name: Copy APKs
+      # Копируем любой найденный APK или AAB в папку out
+      - name: Copy APK or AAB
         run: |
           mkdir -p ${{ github.workspace }}/out
-          find ${{ github.workspace }} -name "*.apk" -type f -exec cp {} ${{ github.workspace }}/out/ \;
-          echo "=== Что скопировали: ==="
+          find / -name "*.apk" -type f -exec cp {} ${{ github.workspace }}/out/ \; 2>/dev/null || true
+          find / -name "*.aab" -type f -exec cp {} ${{ github.workspace }}/out/ \; 2>/dev/null || true
+          echo "=== Что лежит в out/: ==="
           ls -la ${{ github.workspace }}/out/
 
       - name: Sign APK
-        env:
-          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
-          ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          APK=$(ls ${{ github.workspace }}/out/*.apk | head -n 1)
+          APK=$(find ${{ github.workspace }}/out -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "APK не найден, пропускаем подпись"
+            exit 0
+          fi
           echo "Подписываем: $APK"
           jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
             -keystore release.keystore \
-            -storepass "$KS_PASS" \
-            -keypass "$KEY_PASS" \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
             "$APK" \
-            "$ALIAS"
+            "${{ secrets.KEY_ALIAS }}"
 
       - name: Zipalign APK
         run: |
+          APK=$(find ${{ github.workspace }}/out -name "*.apk" | head -n 1)
+          if [ -z "$APK" ]; then exit 0; fi
           ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
-          APK=$(ls ${{ github.workspace }}/out/*.apk | head -n 1)
           $ZIPALIGN -v 4 "$APK" ${{ github.workspace }}/out/MayUmshka2.apk
 
-      - name: Upload APK
+      - name: Upload everything from out
         uses: actions/upload-artifact@v4
         with:
           name: MayUmshka2-v2.0.0
-          path: ${{ github.workspace }}/out/MayUmshka2.apk
+          path: ${{ github.workspace }}/out/
           if-no-files-found: error
