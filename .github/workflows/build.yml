@@ -40,27 +40,38 @@ jobs:
         run: cordova platform add android
 
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release.keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      - name: Build Unsigned Release APK
-        run: cordova build android --release --packageType=apk
+      - name: Build Release APK
+        run: cordova build android --release
 
-      # НАХОДИМ APK И КЛАДЁМ В ПАПКУ build_out
-      - name: Find APK
+      # Показываем, что реально собралось
+      - name: Find built files
+        run: |
+          echo "=== APK: ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "нет APK"
+          echo "=== AAB: ==="
+          find . -name "*.aab" -type f 2>/dev/null || echo "нет AAB"
+          echo "=== Дерево outputs: ==="
+          ls -laR platforms/android/app/build/outputs 2>/dev/null || echo "нет папки outputs"
+
+      # Копируем все APK в одну папку
+      - name: Collect APKs
         run: |
           mkdir -p build_out
-          find platforms/android -name "*.apk" -type f -exec cp {} build_out/ \;
-          echo "=== Найдено APK: ==="
+          find . -name "*.apk" -type f -exec cp {} build_out/ \; 2>/dev/null || true
+          echo "=== Собрано: ==="
           ls -la build_out/
 
       - name: Sign APK
+        if: ${{ hashFiles('build_out/*.apk') != '' }}
         env:
           KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           APK=$(ls build_out/*.apk | head -n 1)
-          echo "Подписываем файл: $APK"
+          echo "Подписываем: $APK"
           jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
             -keystore release.keystore \
             -storepass "$KS_PASS" \
@@ -69,14 +80,15 @@ jobs:
             "$ALIAS"
 
       - name: Zipalign APK
+        if: ${{ hashFiles('build_out/*.apk') != '' }}
         run: |
           ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
           APK=$(ls build_out/*.apk | head -n 1)
-          $ZIPALIGN -v 4 "$APK" build_out/app-release.apk
+          $ZIPALIGN -v 4 "$APK" build_out/MayUmshka2-signed.apk
 
-      - name: Upload Signed APK
+      - name: Upload APK
+        if: ${{ hashFiles('build_out/*.apk') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: MayUmshka2-v2.0.0-Signed
-          path: build_out/app-release.apk
-          if-no-files-found: error
+          path: build_out/MayUmshka2-signed.apk
