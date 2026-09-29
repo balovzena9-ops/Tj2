@@ -1,0 +1,82 @@
+name: Build Signed Cordova APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          SDKMANAGER=$(find $ANDROID_SDK_ROOT -name sdkmanager -type f | head -n 1)
+          yes | $SDKMANAGER --licenses --sdk_root=$ANDROID_SDK_ROOT || true
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Add Android platform
+        run: cordova platform add android
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release.keystore
+
+      - name: Build Unsigned Release APK
+        run: cordova build android --release --packageType=apk
+
+      # НАХОДИМ APK И КЛАДЁМ В ПАПКУ build_out
+      - name: Find APK
+        run: |
+          mkdir -p build_out
+          find platforms/android -name "*.apk" -type f -exec cp {} build_out/ \;
+          echo "=== Найдено APK: ==="
+          ls -la build_out/
+
+      - name: Sign APK
+        env:
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          APK=$(ls build_out/*.apk | head -n 1)
+          echo "Подписываем файл: $APK"
+          jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
+            -keystore release.keystore \
+            -storepass "$KS_PASS" \
+            -keypass "$KEY_PASS" \
+            "$APK" \
+            "$ALIAS"
+
+      - name: Zipalign APK
+        run: |
+          ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
+          APK=$(ls build_out/*.apk | head -n 1)
+          $ZIPALIGN -v 4 "$APK" build_out/app-release.apk
+
+      - name: Upload Signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MayUmshka2-v2.0.0-Signed
+          path: build_out/app-release.apk
+          if-no-files-found: error
