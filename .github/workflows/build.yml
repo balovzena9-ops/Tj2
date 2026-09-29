@@ -42,45 +42,44 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
-      # Собираем APK принудительно через двойной дефис (передача в Gradle)
       - name: Build Release APK
         run: cordova build android --release -- --packageType=apk || cordova build android --release
 
-      # Ищем APK и AAB, копируем ВСЁ найденное
-      - name: Find and copy
+      - name: Pick one APK
         run: |
-          mkdir -p out
-          find ${{ github.workspace }}/platforms -name "*.apk" -type f -exec cp {} out/ \; 2>/dev/null || true
-          find ${{ github.workspace }}/platforms -name "*.aab" -type f -exec cp {} out/ \; 2>/dev/null || true
-          echo "=== Что лежит в out/ ==="
-          ls -la out/
+          mkdir -p final
+          APK=$(find platforms -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "APK не собрался. Проверяем AAB:"
+            find platforms -name "*.aab" -type f
+            exit 1
+          fi
+          echo "Найден APK: $APK"
+          cp "$APK" final/unsigned.apk
 
-      # Если APK есть — подписываем. Если только AAB — пропускаем шаг.
       - name: Sign APK
         run: |
-          APK=$(find out -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "APK не найден, будет загружен только AAB"
-            exit 0
-          fi
-          echo "Подписываем: $APK"
           jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
             -keystore release.keystore \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
             -keypass "${{ secrets.KEY_PASSWORD }}" \
-            "$APK" \
+            final/unsigned.apk \
             "${{ secrets.KEY_ALIAS }}"
 
-      - name: Zipalign APK
+      - name: Verify signature
         run: |
-          APK=$(find out -name "*.apk" | head -n 1)
-          if [ -z "$APK" ]; then exit 0; fi
-          ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
-          $ZIPALIGN -v 4 "$APK" out/MayUmshka2-ready.apk
+          jarsigner -verify final/unsigned.apk | grep -q "jar verified" \
+            && echo "Подпись подтверждена" \
+            || (echo "ПОДПИСЬ НЕ ПРИМЕНИЛАСЬ" && exit 1)
 
-      - name: Upload everything
+      - name: Zipalign
+        run: |
+          ZIPALIGN=$(find $ANDROID_SDK_ROOT -name zipalign -type f | head -n 1)
+          $ZIPALIGN -v 4 final/unsigned.apk final/MayUmshka2.apk
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: MayUmshka2-v2.0.0
-          path: ${{ github.workspace }}/out/
+          name: MayUmshka2-SIGNED
+          path: final/MayUmshka2.apk
           if-no-files-found: error
