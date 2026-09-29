@@ -10,9 +10,7 @@
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
 
-    <!-- Иконка: файл лежит в www, указываем путь относительно корня проекта -->
     <icon src="www/icon.png" />
 
-    <!-- Плагин для воспроизведения музыки -->
     <plugin name="cordova-plugin-media" spec="^7.0.0" />
 </widget>
