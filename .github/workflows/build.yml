@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -25,7 +25,7 @@ jobs:
           node-version: '20'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v3
 
       - name: Accept Android SDK Licenses
         run: |
@@ -37,28 +37,27 @@ jobs:
       - name: Add Android platform
         run: cordova platform add android
 
-      # Восстанавливаем keystore из секрета
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/my-release-key.keystore
 
-      # Создаём release-signing.properties, чтобы Cordova подписала APK
       - name: Create signing properties
         run: |
-          cat > platforms/android/release-signing.properties <<EOF
-          storeFile=$RUNNER_TEMP/my-release-key.keystore
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          printf 'storeFile=%s\n' "$RUNNER_TEMP/my-release-key.keystore" > platforms/android/release-signing.properties
+          printf 'storePassword=%s\n' "${{ secrets.KEYSTORE_PASSWORD }}" >> platforms/android/release-signing.properties
+          printf 'keyAlias=%s\n' "${{ secrets.KEY_ALIAS }}" >> platforms/android/release-signing.properties
+          printf 'keyPassword=%s\n' "${{ secrets.KEY_PASSWORD }}" >> platforms/android/release-signing.properties
 
-      # Собираем release APK
       - name: Build Release APK
         run: cordova build android --release
 
-      # Загружаем подписанный APK
+      # Показывает, какие APK реально собрались (для отладки)
+      - name: List APK files
+        run: find platforms/android -name "*.apk" -type f
+
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: mayumsyka2-release-apk
-          path: platforms/android/app/build/outputs/apk/release/*.apk
+          path: platforms/android/**/*.apk
+          if-no-files-found: error
