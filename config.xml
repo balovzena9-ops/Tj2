@@ -23,7 +23,7 @@
     <!-- Иконка -->
     <icon src="www/icon.png" />
 
-    <!-- Плагин для музыки возвращен, но доступ к МИКРОФОНУ ЗАБЛОКИРОВАН -->
+    <!-- Плагин для музыки на месте, но доступ к микрофону заблокирован -->
     <plugin name="cordova-plugin-media" spec="^7.0.0">
         <variable name="AUDIO_RECORD_PERMISSION" value="false" />
     </plugin>
@@ -37,7 +37,5 @@
         <icon density="xxhdpi"  src="www/icon.png" />
         <icon density="xxxhdpi" src="www/icon.png" />
     </platform>
-
-</widget>
 
 </widget>
