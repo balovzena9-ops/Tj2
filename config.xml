@@ -23,7 +23,10 @@
     <!-- Иконка -->
     <icon src="www/icon.png" />
 
-    <!-- Удален старый плагин, который тащил за собой микрофон -->
+    <!-- Плагин для музыки возвращен, но доступ к МИКРОФОНУ ЗАБЛОКИРОВАН -->
+    <plugin name="cordova-plugin-media" spec="^7.0.0">
+        <variable name="AUDIO_RECORD_PERMISSION" value="false" />
+    </plugin>
 
     <platform name="android">
         <preference name="android-usesCleartextTraffic" value="true" />
@@ -34,5 +37,7 @@
         <icon density="xxhdpi"  src="www/icon.png" />
         <icon density="xxxhdpi" src="www/icon.png" />
     </platform>
+
+</widget>
 
 </widget>
