@@ -724,6 +724,12 @@
   <div class="modal" id="pauseModal">
     <div class="modalBox">
       <h2>ПАУЗА</h2>
+      <div class="volRow"><label>ЧУВСТВИТЕЛЬНОСТЬ</label>
+        <input type="range" id="camSens" min="20" max="300" value="100">
+        <span id="camSensVal">100</span></div>
+      <div style="font-size:10px;color:#7a5a5a;letter-spacing:1px;margin:-6px 0 14px 0;line-height:1.5">
+        Скорость поворота камеры при свайпе. Ниже — плавнее и медленнее.
+      </div>
       <button id="pauseResume">▶ ПРОДОЛЖИТЬ</button>
       <button id="pauseToMenu">🏠 ГЛАВНОЕ МЕНЮ</button>
     </div>
@@ -3145,6 +3151,9 @@ function buildToilets(){
 }
 
 const player={pos:new THREE.Vector3(0,0,3.5),yaw:0,pitch:0,bob:0,stepAcc:0};
+let camSensitivity = 1.0;
+let camTargetYaw = 0;
+let camTargetPitch = 0;
 let gameState='menu';
 let sceneState='menu';
 let night=1;
@@ -3618,6 +3627,7 @@ function updatePlayer(dt){
     if (seatAnim.t >= 1){
       seatAnim.t = 1;
       playerCam.position.copy(seatAnim.toPos); player.yaw = seatAnim.toYaw; player.pitch = seatAnim.toPitch;
+      camTargetYaw = player.yaw; camTargetPitch = player.pitch;
       if (seatAnim.endingSit){ player.pos.set(seatAnim.toPos.x, 0, seatAnim.toPos.z); }
       seatAnim = null;
       const q = new THREE.Quaternion(); q.setFromEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')); playerCam.quaternion.copy(q);
@@ -3632,12 +3642,23 @@ function updatePlayer(dt){
   }
   if (gameState!=='playing'||jumpscareActive||gamePaused||virusActive){ playerCam.position.set(player.pos.x,1.7,player.pos.z); return; }
   if (seated){
+    const _camSmooth = Math.min(1, dt * 18);
+    player.yaw += (camTargetYaw - player.yaw) * _camSmooth;
+    player.pitch += (camTargetPitch - player.pitch) * _camSmooth;
+    player.pitch = clamp(player.pitch, -1.4, 1.4);
     const breath = Math.sin(performance.now()*0.0012) * 0.010;
     const microShakeX = Math.sin(performance.now()*0.0037) * 0.0025;
     const microShakeY = Math.cos(performance.now()*0.0043) * 0.0025;
     playerCam.position.set(player.pos.x + microShakeX, SEAT_CAM_POS.y + breath + microShakeY, player.pos.z);
     const q = new THREE.Quaternion(); q.setFromEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')); playerCam.quaternion.copy(q);
     return;
+  }
+  // Плавное сглаживание поворота камеры (тянется к целевым yaw/pitch)
+  {
+    const _camSmooth = Math.min(1, dt * 18);
+    player.yaw += (camTargetYaw - player.yaw) * _camSmooth;
+    player.pitch += (camTargetPitch - player.pitch) * _camSmooth;
+    player.pitch = clamp(player.pitch, -1.4, 1.4);
   }
   if (!camOpen){
     // Сглаживание джойстика
@@ -3653,7 +3674,7 @@ function updatePlayer(dt){
       const moveMag=Math.min(1,inMag);
       const sy=Math.sin(player.yaw), cy=Math.cos(player.yaw);
       const fx=-sy, fz=-cy, rx=cy, rz=-sy;
-      const mx=fx*(-niz)+rx*nix, mz=fz*(-niz)+rz*nix;
+      const mx=fx*(-niz)+rx*nix, mz=fz*(-niz)+rz*niz;
       const spd=speed*moveMag;
       const nx=player.pos.x+mx*spd*dt, nz=player.pos.z+mz*spd*dt;
       if (!isBlocked(nx,player.pos.z)) player.pos.x=nx;
@@ -4016,6 +4037,7 @@ function startGame(custom){
   if (eggMode === '1510'){ VIKO_S.timer = 99999; CLASSIC_S.timer = rand(3, 8); VAS_S.timer = rand(5, 10); CRAWLER_S.timer = rand(6, 12); }
   exitSignMat.emissiveIntensity=partyMode?1.8:0.4;
   player.pos.set(0,0,3.5); player.yaw=0; player.pitch=0; player.bob=0;
+  camTargetYaw = 0; camTargetPitch = 0;
   seated = false; seatAnim = null; camOpen = false;
   $('monitorHud').classList.remove('on');
   $('sitHint').classList.remove('on');
@@ -4336,6 +4358,14 @@ makeBloodTitle();
 initSpeech();
 loadProgress();
 try { if (localStorage.getItem('mayumEco') === '1') applyEcoMode(true); } catch(e){}
+try {
+  const _savedSens = localStorage.getItem('mayumCamSens');
+  if (_savedSens !== null){
+    camSensitivity = Math.max(0.2, Math.min(3.0, parseFloat(_savedSens) || 1.0));
+    const _el = $('camSens');
+    if (_el){ _el.value = Math.round(camSensitivity*100); const _v = $('camSensVal'); if (_v) _v.textContent = _el.value; }
+  }
+} catch(e){}
 
 (function dust(){
   const c = document.getElementById('dust'); if (!c) return;
@@ -4354,6 +4384,13 @@ $('pauseResume').addEventListener('click', () => { gamePaused = false; $('pauseM
 $('pauseToMenu').addEventListener('click', () => { gamePaused = false; $('pauseModal').classList.remove('on'); goToMenu(); });
 $('virusRestart').addEventListener('click', virusClick);
 $('virusRestart').addEventListener('touchstart', (e)=>{ e.preventDefault(); virusClick(); }, {passive:false});
+
+const _camSensEl = $('camSens');
+if (_camSensEl) _camSensEl.addEventListener('input', e => {
+  camSensitivity = e.target.value / 100;
+  const _v = $('camSensVal'); if (_v) _v.textContent = e.target.value;
+  try { localStorage.setItem('mayumCamSens', camSensitivity); } catch(err){}
+});
 
 document.querySelectorAll('.etab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -4577,8 +4614,9 @@ document.addEventListener('pointermove', e => {
   if (e.pointerId !== lookPointerId) return;
   const dx = e.clientX - lastLookX; const dy = e.clientY - lastLookY;
   lastLookX = e.clientX; lastLookY = e.clientY;
-  player.yaw -= dx * 0.005; player.pitch -= dy * 0.005;
-  player.pitch = clamp(player.pitch, -1.4, 1.4);
+  camTargetYaw -= dx * 0.005 * camSensitivity;
+  camTargetPitch -= dy * 0.005 * camSensitivity;
+  camTargetPitch = clamp(camTargetPitch, -1.4, 1.4);
 }, {passive:false});
 document.addEventListener('pointerup', e => { if (e.pointerId === lookPointerId) lookPointerId = null; });
 document.addEventListener('pointercancel', e => { if (e.pointerId === lookPointerId) lookPointerId = null; });
